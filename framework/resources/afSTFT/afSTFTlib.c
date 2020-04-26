@@ -641,14 +641,14 @@ void afHybridForward(void* handle, complexVector* FD)
         
         /* The 0.5 multipliers are the center coefficients of the half-band FIR filters. Data is duplicated for the half-bands. */
         p1[0] = p2[0];
-        p1[1] = crmulf(p1[2], 0.5f);
+        p1[1] = crmulf(p2[1], 0.5f);
         p1[2] = p1[1];
         p1[3] = crmulf(p2[2], 0.5f);
         p1[4] = p1[3];
         p1[5] = crmulf(p2[3], 0.5f);
         p1[6] = p1[5];
         p1[7] = crmulf(p2[4], 0.5f);
-        p1[8] = p2[7];
+        p1[8] = p1[7];
         
         /* The rest of the bands are shifted upwards in the frequency indices, and delayed by the group delay of the half-band filters */
         utility_cvvcopy(p2[5], h->hopSize - 4, p1[9]);
