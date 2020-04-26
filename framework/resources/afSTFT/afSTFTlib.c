@@ -609,7 +609,11 @@ void afHybridForward(void* handle, complexVector* FD)
 {
     afHybrid *h = (afHybrid*)(handle);
     int ch,band,sample,realImag;
-    float_complex **p1, **p2;
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+    float_complex *p1, *p2;
+#else
+    float *pr1, *pr2, *pi1, *pi2;
+#fi
     float re,im;
     int sampleIndices[7];
     int loopPointerThis;
