@@ -121,11 +121,12 @@ typedef struct{
     int outChannels;
     int hopSize;
     float hybridCoeffs[3];
-    complexVector **analysisBuffer;
-    int loopPointer;
 #ifdef AFSTFT_USE_FLOAT_COMPLEX
-    complexVector *FDtmp;
-#endif
+    float_complex ***analysisBuffer;
+#else
+    complexVector **analysisBuffer;
+#end
+    int loopPointer;
 } afHybrid;
 
 typedef struct {
@@ -258,14 +259,19 @@ void afSTFTchannelChange(void* handle, int new_inChannels, int new_outChannels)
     if (h->hybridMode) {
         hyb_h = h->h_afHybrid;
         if (hyb_h->inChannels != new_inChannels) {
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+            hyb_h->analysisBuffer = (float_complex***) realloc3d(new_inChannels, nSamples, h->hopSize + 1);
+#else
             for (ch = new_inChannels; ch < hyb_h->inChannels; ch++) {
                 for (sample = 0; sample < 7; sample++) {
                     free(hyb_h->analysisBuffer[ch][sample].re);
                     free(hyb_h->analysisBuffer[ch][sample].im);
                 }
                 free(hyb_h->analysisBuffer[ch]);
+
             }
             hyb_h->analysisBuffer = (complexVector**) realloc(hyb_h->analysisBuffer, sizeof(complexVector*) * new_inChannels);
+
             for (ch = hyb_h->inChannels; ch < new_inChannels; ch++) {
                 hyb_h->analysisBuffer[ch] = (complexVector*) malloc(sizeof(complexVector) * 7);
                 for (sample = 0; sample < 7; sample++) {
@@ -273,23 +279,8 @@ void afSTFTchannelChange(void* handle, int new_inChannels, int new_outChannels)
                     hyb_h->analysisBuffer[ch][sample].im = (float*) calloc(sizeof(float), h->hopSize + 1);
                 }
             }
+#fi
         }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-        if (hyb_h->inChannels != new_inChannels || hyb_h->outChannels != new_outChannels) {
-            int old_nCh = hyb_h->inChannels < hyb_h->outChannels ? hyb_h->outChannels : hyb_h->inChannels;
-            int new_nCh = new_inChannels < new_outChannels ? new_outChannels : new_inChannels;
-            for (ch = new_nCh; ch < old_nCh; ch++) {
-                free(hyb_h->FDtmp[ch].re);
-                free(hyb_h->FDtmp[ch].im);
-            }
-            hyb_h->FDtmp = (complexVector*) realloc(hyb_h->FDtmp,
-                sizeof(complexVector) * new_nCh);
-            for (ch = old_nCh; ch < new_nCh; ch++) {
-                hyb_h->FDtmp[ch].re = (float*) calloc(h->hopSize + 5, sizeof(float));
-                hyb_h->FDtmp[ch].im = (float*) calloc(h->hopSize + 5, sizeof(float));
-            }
-        }
-#endif
     }
     h->inChannels = new_inChannels;
     h->outChannels = new_outChannels;
@@ -317,14 +308,6 @@ void afSTFTclearBuffers(void* handle)
 
             }
         }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-        // TODO is this actually necessary?
-        int nCh = h->inChannels < h->outChannels ? h->outChannels : h->inChannels;
-        for (ch = 0; ch < nCh; ch++) {
-            memset(hyb_h->FDtmp[ch].re, 0, sizeof(float) * (h->hopSize + 5));
-            memset(hyb_h->FDtmp[ch].im, 0, sizeof(float) * (h->hopSize + 5));
-        }
-#endif
     }
 }
 
@@ -460,6 +443,8 @@ void afSTFTinverse(void* handle, complexVector* inFD, float** outTD)
         /* Inverse FFT */
 #ifdef AFSTFT_USE_SAF_UTILITIES
 # ifdef AFSTFT_USE_FLOAT_COMPLEX
+        // TODO is it possible here to just IE is it allowed to change inFD
+        //h->fftProcessFrameFD = inFD[ch];
         utility_cvvcopy(inFD[ch], h->hopSize + 1, h->fftProcessFrameFD);
 # else
         for(k = 0; k<h->hopSize+1; k++)
@@ -594,6 +579,7 @@ void afSTFTfree(void* handle)
 void afHybridInit(void** handle, int hopSize, int inChannels, int outChannels)
 {
     /* Allocates 7 samples of memory for FIR filtering at lowest bands, and for delays at other bands. */
+    const int nSamples = 7;
     int ch,sample;
     *handle = malloc(sizeof(afHybrid));
     afHybrid *h = (afHybrid*)(*handle);
@@ -602,6 +588,9 @@ void afHybridInit(void** handle, int hopSize, int inChannels, int outChannels)
     h->outChannels = outChannels;
     h->analysisBuffer = (complexVector**)malloc(sizeof(complexVector*)*h->inChannels);
     h->loopPointer=0;
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+    h->analysisBuffer = (float_complex***) malloc3d(h->inChannels, nSamples, h->hopSize + 1));
+#else
     for (ch=0;ch<h->inChannels;ch++)
     {
         h->analysisBuffer[ch] = (complexVector*)malloc(sizeof(complexVector)*7);
@@ -611,25 +600,18 @@ void afHybridInit(void** handle, int hopSize, int inChannels, int outChannels)
             h->analysisBuffer[ch][sample].im=(float*)calloc(sizeof(float),h->hopSize+1);
         }
     }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-    int nCh = inChannels < outChannels ? outChannels : inChannels;
-    h->FDtmp = (complexVector*) malloc(nCh * sizeof(complexVector));
-    for (ch = 0; ch < nCh; ch++) {
-        h->FDtmp[ch].re = (float*) calloc((h->hopSize + 5), sizeof(float));
-        h->FDtmp[ch].im = (float*) calloc((h->hopSize + 5), sizeof(float));
-    }
-#endif
+#fi
 }
 
 #ifdef AFSTFT_USE_FLOAT_COMPLEX
-void afHybridForward(void* handle, float_complex** FDin)
+void afHybridForward(void* handle, float_complex** FD)
 #else
 void afHybridForward(void* handle, complexVector* FD)
 #endif
 {
     afHybrid *h = (afHybrid*)(handle);
     int ch,band,sample,realImag;
-    float *pr1, *pr2, *pi1, *pi2;
+    float_complex **p1, **p2;
     float re,im;
     int sampleIndices[7];
     int loopPointerThis;
@@ -638,18 +620,37 @@ void afHybridForward(void* handle, complexVector* FD)
     {
         h->loopPointer = 0;
     }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-    complexVector *FD = h->FDtmp;
-    int b;
-    for (ch = 0; ch < h->inChannels; ch++) {
-        for (b = 0; b < h->hopSize + 5; b++) {
-            FD[ch].re[b] = crealf(FDin[ch][b]);
-            FD[ch].im[b] = cimagf(FDin[ch][b]);
-        }
-    }
-#endif
     for (ch=0;ch<h->inChannels;ch++)
     {
+
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+        /* Copy data from input to the memory buffer */
+        p1 = FD[ch];
+        p2 = h->analysisBuffer[ch][h->loopPointer];
+        utility_cvvcopy(p1, h->hopSize + 1, p2);
+
+        /* Get the pointer to a position corresponding to the group delay of the linear-phase half-band filter. */
+        loopPointerThis = h->loopPointer - 3;
+        if (loopPointerThis < 0) {
+            loopPointerThis += 7;
+        }
+        p1 = FD[ch];
+        p2 = h->analysisBuffer[ch][loopPointerThis];
+        
+        /* The 0.5 multipliers are the center coefficients of the half-band FIR filters. Data is duplicated for the half-bands. */
+        p1[0] = p2[0];
+        p1[1] = crmulf(p1[2], 0.5f);
+        p1[2] = p1[1];
+        p1[3] = crmulf(p2[2], 0.5f);
+        p1[4] = p1[3];
+        p1[5] = crmulf(p2[3], 0.5f);
+        p1[6] = p1[5];
+        p1[7] = crmulf(p2[4], 0.5f);
+        p1[8] = p2[7];
+        
+        /* The rest of the bands are shifted upwards in the frequency indices, and delayed by the group delay of the half-band filters */
+        utility_cvvcopy(p2[5], h->hopSize - 4, p1[9]);
+#else
         /* Copy data from input to the memory buffer */
         pr1 = FD[ch].re;
         pi1 = FD[ch].im;
@@ -686,6 +687,7 @@ void afHybridForward(void* handle, complexVector* FD)
             pr1 = FD[ch].im;
             pr2 = h->analysisBuffer[ch][loopPointerThis].im;
         }
+#fi
     
         for (sample=0;sample<7;sample++)
         {
@@ -698,6 +700,27 @@ void afHybridForward(void* handle, complexVector* FD)
         }
         for (band=1; band<5; band++)
         {
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+            /* The rest of the half-band FIR filtering is implemented below. The real<->imaginary shifts are for shifting the half-band filter spectra. */
+            re = -COEFF1 * cimagf(h->analysisBuffer[ch][sampleIndices[6]][band]);
+            im =  COEFF1 * crealf(h->analysisBuffer[ch][sampleIndices[6]][band]);
+            re -= COEFF2 * cimagf(h->analysisBuffer[ch][sampleIndices[4]][band]);
+            im += COEFF2 * crealf(h->analysisBuffer[ch][sampleIndices[4]][band]);
+            re += COEFF2 * cimagf(h->analysisBuffer[ch][sampleIndices[2]][band]);
+            im -= COEFF2 * crealf(h->analysisBuffer[ch][sampleIndices[2]][band]);
+            re += COEFF1 * cimagf(h->analysisBuffer[ch][sampleIndices[0]][band]);
+            im -= COEFF1 * crealf(h->analysisBuffer[ch][sampleIndices[0]][band]);
+            
+            /* The addition or subtraction process below provides the upper and lower half-band spectra (the coefficient 0.5 had the same sign for both bands).
+            The half-band orders are switched for bands=1,3 with respect to band=2,4, because of the organization of the spectral data at the downsampled frequency band signals. As the result of the order switching, the bands are organized by the ascending spectral position. */
+            if (band == 1 || band== 3) {
+                FD[ch][band * 2 - 1] = ccsubf(FD[ch][band * 2 - 1], cmplxf(re, im));
+                FD[ch][band * 2] = ccaddf(FD[ch][band * 2], cmplxf(re, im));
+            } else {
+                FD[ch][band * 2 - 1] = ccaddf(FD[ch][band * 2 - 1], cmplxf(re, im));
+                FD[ch][band * 2] = csubf(FD[ch][band * 2], cmplxf(re, im));
+            }
+#else
             /* The rest of the half-band FIR filtering is implemented below. The real<->imaginary shifts are for shifting the half-band filter spectra. */
             re = -COEFF1*h->analysisBuffer[ch][sampleIndices[6]].im[band];
             im =  COEFF1*h->analysisBuffer[ch][sampleIndices[6]].re[band];
@@ -724,41 +747,38 @@ void afHybridForward(void* handle, complexVector* FD)
                 FD[ch].re[band*2] -= re;
                 FD[ch].im[band*2] -= im;
             }
-            
+#fi
         }
     }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-    for (ch = 0; ch < h->inChannels; ch++) {
-        for (b = 0; b < h->hopSize + 5; b++) {
-            FDin[ch][b] = cmplxf(FD[ch].re[b], FD[ch].im[b]);
-        }
-    }
-#endif
 }
 
 #ifdef AFSTFT_USE_FLOAT_COMPLEX
-void afHybridInverse(void* handle, float_complex** FDin)
+void afHybridInverse(void* handle, float_complex** FD)
 #else
 void afHybridInverse(void* handle, complexVector* FD)
 #endif
 {
     afHybrid *h = (afHybrid*)(handle);
     int ch,realImag;
-    float *pr;
 #ifdef AFSTFT_USE_FLOAT_COMPLEX
-    int b;
-    complexVector *FD = h->FDtmp;
-
-    for (ch = 0; ch < h->outChannels; ch++) {
-        for (b = 0; b < h->hopSize + 5; b++) {
-            FD[ch].re[b] = crealf(FDin[ch][b]);
-            FD[ch].im[b] = cimagf(FDin[ch][b]);
-        }
-    }
-#endif
+    float_complex *p;
+#else
+    float *pr;
+#fi
 
     for (ch=0;ch<h->outChannels;ch++)
     {
+#ifdef AFSTFT_USE_FLOAT_COMPLEX
+        p = FD[ch];
+        /* Since no downsampling was applied, the inverse hybrid filtering is just sum of the bands */
+        p[1] = ccaddf(p[1], p[2]);
+        p[2] = ccaddf(p[3], p[4]);
+        p[3] = ccaddf(p[5], p[6]);
+        p[4] = ccaddf(p[7], p[8]);
+
+        /* The rest of the bands are shifted to their original positions */
+        memmove(p[5], p[9], sizeof(float_complex) * (h->hopSize - 4));
+#else
         pr = FD[ch].re;
         for (realImag=0;realImag<2;realImag++)
         {
@@ -774,20 +794,15 @@ void afHybridInverse(void* handle, complexVector* FD)
             /* Repeat process for the imaginary part, at next iteration. */
             pr = FD[ch].im;
         }
+#fi
     }
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-    for (ch = 0; ch < h->outChannels; ch++) {
-        for (b = 0; b < h->hopSize + 5; b++) {
-            FDin[ch][b] = cmplxf(FD[ch].re[b], FD[ch].im[b]);
-        }
-    }
-#endif
 }
 
 void afHybridFree(void* handle)
 {
     int ch,sample;
     afHybrid *h = (afHybrid*)(handle);
+#ifndef AFSTFT_USE_FLOAT_COMPLEX
     for (ch=0;ch<h->inChannels;ch++)
     {
         
@@ -799,15 +814,8 @@ void afHybridFree(void* handle)
         free(h->analysisBuffer[ch]);
           
     }
-    free(h->analysisBuffer);
-#ifdef AFSTFT_USE_FLOAT_COMPLEX
-    int nCh = h->inChannels < h->outChannels ? h->outChannels : h->inChannels;
-    for (ch = 0; ch < nCh; ch++) {
-        free(h->FDtmp[ch].re);
-        free(h->FDtmp[ch].im);
-    }
-    free(h->FDtmp);
 #endif
+    free(h->analysisBuffer);
     free(handle);
 }
 
