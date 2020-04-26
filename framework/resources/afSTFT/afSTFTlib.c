@@ -268,8 +268,10 @@ void afSTFTchannelChange(void* handle, int new_inChannels, int new_outChannels)
                     free(hyb_h->analysisBuffer[ch][sample].im);
                 }
                 free(hyb_h->analysisBuffer[ch]);
+
             }
             hyb_h->analysisBuffer = (complexVector**) realloc(hyb_h->analysisBuffer, sizeof(complexVector*) * new_inChannels);
+
             for (ch = hyb_h->inChannels; ch < new_inChannels; ch++) {
                 hyb_h->analysisBuffer[ch] = (complexVector*) malloc(sizeof(complexVector) * 7);
                 for (sample = 0; sample < 7; sample++) {
