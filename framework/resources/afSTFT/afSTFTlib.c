@@ -651,7 +651,7 @@ void afHybridForward(void* handle, complexVector* FD)
         p1[8] = p1[7];
         
         /* The rest of the bands are shifted upwards in the frequency indices, and delayed by the group delay of the half-band filters */
-        utility_cvvcopy(p2[5], h->hopSize - 4, p1[9]);
+        utility_cvvcopy(p2 + 5, h->hopSize - 4, p1 + 9);
 #else
         /* Copy data from input to the memory buffer */
         pr1 = FD[ch].re;
@@ -779,7 +779,7 @@ void afHybridInverse(void* handle, complexVector* FD)
         p[4] = ccaddf(p[7], p[8]);
 
         /* The rest of the bands are shifted to their original positions */
-        memmove(p+5, p+9, sizeof(float_complex) * (h->hopSize - 4));
+        memmove(p + 5, p + 9, sizeof(float_complex) * (h->hopSize - 4));
 #else
         pr = FD[ch].re;
         for (realImag=0;realImag<2;realImag++)
