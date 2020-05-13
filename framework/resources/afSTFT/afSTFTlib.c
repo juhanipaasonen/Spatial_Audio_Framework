@@ -277,7 +277,7 @@ void afSTFTchannelChange(void* handle, int new_inChannels, int new_outChannels)
                     hyb_h->analysisBuffer[ch][sample].im = (float*) calloc(sizeof(float), h->hopSize + 1);
                 }
             }
-#fi
+#endif
         }
     }
     h->inChannels = new_inChannels;
@@ -598,7 +598,7 @@ void afHybridInit(void** handle, int hopSize, int inChannels, int outChannels)
             h->analysisBuffer[ch][sample].im=(float*)calloc(sizeof(float),h->hopSize+1);
         }
     }
-#fi
+#endif
 }
 
 #ifdef AFSTFT_USE_FLOAT_COMPLEX
@@ -613,7 +613,7 @@ void afHybridForward(void* handle, complexVector* FD)
     float_complex *p1, *p2;
 #else
     float *pr1, *pr2, *pi1, *pi2;
-#fi
+#endif
     float re,im;
     int sampleIndices[7];
     int loopPointerThis;
@@ -689,7 +689,7 @@ void afHybridForward(void* handle, complexVector* FD)
             pr1 = FD[ch].im;
             pr2 = h->analysisBuffer[ch][loopPointerThis].im;
         }
-#fi
+#endif
     
         for (sample=0;sample<7;sample++)
         {
@@ -749,7 +749,7 @@ void afHybridForward(void* handle, complexVector* FD)
                 FD[ch].re[band*2] -= re;
                 FD[ch].im[band*2] -= im;
             }
-#fi
+#endif
         }
     }
 }
@@ -766,7 +766,7 @@ void afHybridInverse(void* handle, complexVector* FD)
     float_complex *p;
 #else
     float *pr;
-#fi
+#endif
 
     for (ch=0;ch<h->outChannels;ch++)
     {
@@ -796,7 +796,7 @@ void afHybridInverse(void* handle, complexVector* FD)
             /* Repeat process for the imaginary part, at next iteration. */
             pr = FD[ch].im;
         }
-#fi
+#endif
     }
 }
 
