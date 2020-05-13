@@ -779,7 +779,7 @@ void afHybridInverse(void* handle, complexVector* FD)
         p[4] = ccaddf(p[7], p[8]);
 
         /* The rest of the bands are shifted to their original positions */
-        memmove(p[5], p[9], sizeof(float_complex) * (h->hopSize - 4));
+        memmove(p+5, p+9, sizeof(float_complex) * (h->hopSize - 4));
 #else
         pr = FD[ch].re;
         for (realImag=0;realImag<2;realImag++)
