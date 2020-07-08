@@ -33,6 +33,8 @@ cblas_sscal
 cblas_dscal
 cblas_cscal
 cblas_zscal
+cblas_csscal
+cblas_saxpy
 cblas_dgemm
 cblas_isamax
 cblas_isamin
@@ -69,6 +71,8 @@ vsMul
 vcMul
 vsAbs
 vcAbs
+vsDiv
+vcDiv
 DftiCommitDescriptor
 DftiComputeBackward
 DftiComputeForward
